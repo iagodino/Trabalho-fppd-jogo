@@ -29,6 +29,8 @@ func main() {
 		if continuar := personagemExecutarAcao(evento, &jogo); !continuar {
 			break
 		}
+		go jogoMoverInimigo(&jogo)
+
 		interfaceDesenharJogo(&jogo)
 	}
 }
