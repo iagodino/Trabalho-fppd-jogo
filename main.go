@@ -25,9 +25,14 @@ func main() {
 
 	go func() {
 		for {
-			interfaceDesenharJogo(&jogo)
-			jogoMoverInimigo(&jogo)
-			time.Sleep(500 * time.Millisecond)
+			select {
+			case modo := <-inimigoModoChange:
+				inimigoModo = modo
+			default:
+				interfaceDesenharJogo(&jogo)
+				jogoMoverInimigo(&jogo)
+				time.Sleep(500 * time.Millisecond)
+			}
 		}
 	}()
 
