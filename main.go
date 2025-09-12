@@ -1,7 +1,10 @@
 // main.go - Loop principal do jogo
 package main
 
-import "os"
+import (
+	"os"
+	"time"
+)
 
 func main() {
 	// Inicializa a interface (termbox)
@@ -20,6 +23,14 @@ func main() {
 		panic(err)
 	}
 
+	go func() {
+		for {
+			interfaceDesenharJogo(&jogo)
+			jogoMoverInimigo(&jogo)
+			time.Sleep(500 * time.Millisecond)
+		}
+	}()
+
 	// Desenha o estado inicial do jogo
 	interfaceDesenharJogo(&jogo)
 
@@ -29,8 +40,7 @@ func main() {
 		if continuar := personagemExecutarAcao(evento, &jogo); !continuar {
 			break
 		}
-		go jogoMoverInimigo(&jogo)
 
-		interfaceDesenharJogo(&jogo)
+		go interfaceDesenharJogo(&jogo)
 	}
 }

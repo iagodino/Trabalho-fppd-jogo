@@ -4,6 +4,7 @@ package main
 import (
 	"bufio"
 	"os"
+	"sync"
 )
 
 // Elemento representa qualquer objeto do mapa (parede, personagem, vegetação, etc)
@@ -31,6 +32,7 @@ var (
 	Vazio                 = Elemento{' ', CorPadrao, CorPadrao, false}
 	inimigoDirecao        = make(map[[2]int]int)      // posição [x,y] -> direção (0: direita, 1: baixo, 2: esquerda, 3: cima)
 	inimigoUltimoVisitado = make(map[[2]int]Elemento) // posição [x,y] -> último elemento visitado
+	jogoMutex             sync.Mutex                  // mutex para sincronizar o acesso ao estado do jogo
 )
 
 // Cria e retorna uma nova instância do jogo
@@ -120,6 +122,8 @@ func jogoMoverElemento(jogo *Jogo, x, y, dx, dy int) {
 }
 
 func jogoMoverInimigo(jogo *Jogo) {
+	jogoMutex.Lock()
+
 	dx := []int{1, 0, -1, 0} // Direções: direita, baixo, esquerda, cima
 	dy := []int{0, 1, 0, -1}
 	novaDirecoes := make(map[[2]int]int)
@@ -167,4 +171,5 @@ func jogoMoverInimigo(jogo *Jogo) {
 	}
 	inimigoDirecao = novaDirecoes
 	inimigoUltimoVisitado = novaUltimoVisitado
+	defer jogoMutex.Unlock()
 }

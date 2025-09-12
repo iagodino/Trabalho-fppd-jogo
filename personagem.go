@@ -5,6 +5,7 @@ import "fmt"
 
 // Atualiza a posição do personagem com base na tecla pressionada (WASD)
 func personagemMover(tecla rune, jogo *Jogo) {
+	jogoMutex.Lock()
 	dx, dy := 0, 0
 	switch tecla {
 	case 'w':
@@ -23,6 +24,7 @@ func personagemMover(tecla rune, jogo *Jogo) {
 		jogoMoverElemento(jogo, jogo.PosX, jogo.PosY, dx, dy)
 		jogo.PosX, jogo.PosY = nx, ny
 	}
+	defer jogoMutex.Unlock()
 }
 
 // Define o que ocorre quando o jogador pressiona a tecla de interação
