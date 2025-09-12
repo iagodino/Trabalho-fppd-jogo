@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-    // Inicializa a interface (termbox)
+  // Inicializa a interface (termbox)
     interfaceIniciar()
     defer interfaceFinalizar()
 
@@ -24,9 +24,14 @@ func main() {
     // Goroutine para movimento dos inimigos (mantém a funcionalidade existente)
     go func() {
         for {
-            interfaceDesenharJogo(jogo)
-            jogoMoverInimigo(jogo)
-            time.Sleep(500 * time.Millisecond)
+            select {
+			case modo := <-inimigoModoChange:
+				inimigoModo = modo
+			default:
+				interfaceDesenharJogo(&jogo)
+				jogoMoverInimigo(&jogo)
+				time.Sleep(500 * time.Millisecond)
+			}
         }
     }()
 
