@@ -1,6 +1,6 @@
 module jogo
 
-go 1.24.2
+go 1.18
 
 require (
 	github.com/mattn/go-runewidth v0.0.16 // indirect
