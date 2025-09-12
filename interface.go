@@ -18,6 +18,9 @@ const (
 	CorCinzaEscuro     = termbox.ColorDarkGray
 	CorVermelho        = termbox.ColorRed
 	CorVerde           = termbox.ColorGreen
+	CorAmarelo         = termbox.ColorYellow
+	CorAzul            = termbox.ColorBlue
+	CorMagenta         = termbox.ColorMagenta
 	CorParede          = termbox.ColorBlack | termbox.AttrBold | termbox.AttrDim
 	CorFundoParede     = termbox.ColorDarkGray
 	CorTexto           = termbox.ColorDarkGray
