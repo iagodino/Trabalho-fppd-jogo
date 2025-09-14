@@ -29,7 +29,7 @@ func jogoMoverInimigo(jogo *Jogo) {
 					// Inimigo Perseguidor
 					// move em direção do jogador
 
-					if inimigoModo == "patrulheiro" {
+					if inimigoModo == "perseguidor" {
 						personagemPosicaoX, personagemPosicaoY := jogo.PosX, jogo.PosY
 						var mdx, mdy int
 						if x < personagemPosicaoX {
