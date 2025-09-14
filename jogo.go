@@ -4,7 +4,6 @@ package main
 import (
 	"bufio"
 	"os"
-	"sync"
 )
 
 // Elemento representa qualquer objeto do mapa (parede, personagem, vegetação, etc)
@@ -17,38 +16,38 @@ type Elemento struct {
 
 // Jogo contém o estado atual do jogo
 type Jogo struct {
-	Mapa           [][]Elemento // grade 2D representando o mapa
-	PosX, PosY     int          // posição atual do personagem
-	UltimoVisitado Elemento     // elemento que estava na posição do personagem antes de mover
-	StatusMsg      string       // mensagem para a barra de status
+	Mapa                [][]Elemento         // grade 2D representando o mapa
+	PosX, PosY          int                  // posição atual do personagem
+	UltimoVisitado      Elemento             // elemento que estava na posição do personagem antes de mover
+	StatusMsg           string               // mensagem para a barra de status
 	SistemaConcorrencia *SistemaConcorrencia // sistema de concorrência associado ao jogo
+
+	acaoChan chan func() // canal de exclusão mútua
 }
 
 // Elementos visuais do jogo
 var (
-	Inimigo2   = Elemento{'☙', CorAzul, CorPadrao, true}
-	inimigoModoChange     = make(chan string)         // canal para mudar o modo do inimigo (patrulheiro ou perseguidor)
-	inimigoModo           = "patrulheiro"             // modo atual do inimigo (padrão: patrulheiro)
-	Personagem            = Elemento{'☺', CorCinzaEscuro, CorPadrao, true}
-	Inimigo               = Elemento{'☠', CorVermelho, CorPadrao, true}
-	Parede                = Elemento{'▤', CorParede, CorFundoParede, true}
-	Vegetacao             = Elemento{'♣', CorVerde, CorPadrao, false}
-	Vazio                 = Elemento{' ', CorPadrao, CorPadrao, false}
-	PortalAberto  = Elemento{'◯', CorVerde, CorPadrao, false}
-    PortalFechado = Elemento{'●', CorVermelho, CorPadrao, false}
-    AlavancaOff   = Elemento{'⊥', CorVermelho, CorPadrao, false}
-    AlavancaOn    = Elemento{'⊤', CorVerde, CorPadrao, false}
-    PortaAberta   = Elemento{' ', CorPadrao, CorPadrao, false}   // Porta aberta = espaço vazio
-    PortaFechada  = Elemento{'║', CorAmarelo, CorPadrao, true}   // Porta fechada = bloqueia
-	inimigoDirecao        = make(map[[2]int]int)      // posição [x,y] -> direção (0: direita, 1: baixo, 2: esquerda, 3: cima)
-	inimigoUltimoVisitado = make(map[[2]int]Elemento) // posição [x,y] -> último elemento visitado
-	jogoMutex             sync.Mutex                   // mutex para sincronizar o acesso ao estado do jogo
+	Inimigo2          = Elemento{'☙', CorAzul, CorPadrao, true}
+	inimigoModoChange = make(chan string)
+	inimigoModo       = "patrulheiro"
+	Personagem        = Elemento{'☺', CorCinzaEscuro, CorPadrao, true}
+	Inimigo           = Elemento{'☠', CorVermelho, CorPadrao, true}
+	Parede            = Elemento{'▤', CorParede, CorFundoParede, true}
+	Vegetacao         = Elemento{'♣', CorVerde, CorPadrao, false}
+	Vazio             = Elemento{' ', CorPadrao, CorPadrao, false}
+	PortalAberto      = Elemento{'◯', CorVerde, CorPadrao, false}
+	PortalFechado     = Elemento{'●', CorVermelho, CorPadrao, false}
+	AlavancaOff       = Elemento{'⊥', CorVermelho, CorPadrao, false}
+	AlavancaOn        = Elemento{'⊤', CorVerde, CorPadrao, false}
+	PortaAberta       = Elemento{' ', CorPadrao, CorPadrao, false}
+	PortaFechada      = Elemento{'║', CorAmarelo, CorPadrao, true}
+
+	inimigoDirecao        = make(map[[2]int]int)
+	inimigoUltimoVisitado = make(map[[2]int]Elemento)
 )
 
 // Cria e retorna uma nova instância do jogo
 func jogoNovo() Jogo {
-	// O ultimo elemento visitado é inicializado como vazio
-	// pois o jogo começa com o personagem em uma posição vazia
 	return Jogo{UltimoVisitado: Vazio}
 }
 
@@ -77,19 +76,18 @@ func jogoCarregarMapa(nome string, jogo *Jogo) error {
 			case Vegetacao.simbolo:
 				e = Vegetacao
 			case Personagem.simbolo:
-				jogo.PosX, jogo.PosY = x, y // registra a posição inicial do personagem
-			case '●': // Portal fechado
+				jogo.PosX, jogo.PosY = x, y
+			case '●':
 				e = PortalFechado
-			case '◯': // Portal aberto
+			case '◯':
 				e = PortalAberto
-			case '⊥': // Alavanca desligada
+			case '⊥':
 				e = AlavancaOff
-			case '║': // Porta fechada
+			case '║':
 				e = PortaFechada
-			case '⊤': // Alavanca ligada
+			case '⊤':
 				e = AlavancaOn
 			}
-
 			linhaElems = append(linhaElems, e)
 		}
 		jogo.Mapa = append(jogo.Mapa, linhaElems)
@@ -102,7 +100,7 @@ func jogoCarregarMapa(nome string, jogo *Jogo) error {
 	for y, linha := range jogo.Mapa {
 		for x, elem := range linha {
 			if elem == Inimigo {
-				inimigoDirecao[[2]int{x, y}] = 0 // começa indo para a direita
+				inimigoDirecao[[2]int{x, y}] = 0
 				inimigoUltimoVisitado[[2]int{x, y}] = Vazio
 			}
 		}
@@ -113,93 +111,91 @@ func jogoCarregarMapa(nome string, jogo *Jogo) error {
 
 // Verifica se o personagem pode se mover para a posição (x, y)
 func jogoPodeMoverPara(jogo *Jogo, x, y int) bool {
-	// Verifica se a coordenada Y está dentro dos limites verticais do mapa
 	if y < 0 || y >= len(jogo.Mapa) {
 		return false
 	}
-
-	// Verifica se a coordenada X está dentro dos limites horizontais do mapa
 	if x < 0 || x >= len(jogo.Mapa[y]) {
 		return false
 	}
-
-	// Verifica se o elemento de destino é tangível (bloqueia passagem)
 	if jogo.Mapa[y][x].tangivel {
 		return false
 	}
-
-	// Pode mover para a posição
 	return true
 }
 
 // Move um elemento para a nova posição
 func jogoMoverElemento(jogo *Jogo, x, y, dx, dy int) {
 	nx, ny := x+dx, y+dy
-
-	// Obtem elemento atual na posição
-	elemento := jogo.Mapa[y][x] // guarda o conteúdo atual da posição
-
-	jogo.Mapa[y][x] = jogo.UltimoVisitado   // restaura o conteúdo anterior
-	jogo.UltimoVisitado = jogo.Mapa[ny][nx] // guarda o conteúdo atual da nova posição
-	jogo.Mapa[ny][nx] = elemento            // move o elemento
+	elemento := jogo.Mapa[y][x]
+	jogo.Mapa[y][x] = jogo.UltimoVisitado
+	jogo.UltimoVisitado = jogo.Mapa[ny][nx]
+	jogo.Mapa[ny][nx] = elemento
 }
 
 func jogoNovoComConcorrencia(nomeArquivo string) *Jogo {
-    jogo := &Jogo{
-        UltimoVisitado:      Vazio,
-        StatusMsg:           "Use WASD para mover, E para interagir, ESC para sair",
-        SistemaConcorrencia: novoSistemaConcorrencia(),
-    }
-    
-    // Carrega o mapa
-    err := jogoCarregarMapa(nomeArquivo, jogo)
-    if err != nil {
-        panic(err)
-    }
-    
-    // Inicializa elementos concorrentes
-    jogo.inicializarElementos()
-    
-    return jogo
+	jogo := &Jogo{
+		UltimoVisitado:      Vazio,
+		StatusMsg:           "Use WASD para mover, E para interagir, ESC para sair",
+		SistemaConcorrencia: novoSistemaConcorrencia(),
+		acaoChan:            make(chan func(), 100),
+	}
+
+	// Goroutine que garante exclusão mútua
+	go func() {
+		for acao := range jogo.acaoChan {
+			acao()
+		}
+	}()
+
+	// Carrega o mapa
+	if err := jogoCarregarMapa(nomeArquivo, jogo); err != nil {
+		panic(err)
+	}
+
+	jogo.inicializarElementos()
+	return jogo
 }
 
 // Procura e inicializa todos os elementos concorrentes no mapa
 func (j *Jogo) inicializarElementos() {
 	j.SistemaConcorrencia.Iniciar()
-	
-	// Percorre o mapa inteiro procurando elementos especiais
+
 	for y := 0; y < len(j.Mapa); y++ {
 		for x := 0; x < len(j.Mapa[y]); x++ {
 			elem := j.Mapa[y][x]
-			
 			switch elem {
 			case PortalFechado:
 				portal := novoPortal(x, y, j)
 				j.SistemaConcorrencia.AdicionarElemento(portal)
-				
 			case AlavancaOff:
 				alavanca := novaAlavanca(x, y, j)
 				j.SistemaConcorrencia.AdicionarElemento(alavanca)
-				
 			case PortaFechada:
 				porta := novaPorta(x, y, j)
 				j.SistemaConcorrencia.AdicionarElemento(porta)
 			}
 		}
 	}
-}// Atualiza um elemento no mapa (thread-safe)
+}
+
+// Executa ação exclusiva no estado do jogo
+func (j *Jogo) executar(acao func()) {
+	j.acaoChan <- acao
+}
+
+// Atualiza um elemento no mapa (thread-safe)
 func (j *Jogo) AtualizarElemento(x, y int, novoElem Elemento) {
-    jogoMutex.Lock()
-    defer jogoMutex.Unlock()
-    
-    if y >= 0 && y < len(j.Mapa) && x >= 0 && x < len(j.Mapa[y]) {
-        j.Mapa[y][x] = novoElem
-    }
+	j.executar(func() {
+		if y >= 0 && y < len(j.Mapa) && x >= 0 && x < len(j.Mapa[y]) {
+			j.Mapa[y][x] = novoElem
+		}
+	})
 }
 
 // Para o sistema de concorrência
 func (j *Jogo) Finalizar() {
-    if j.SistemaConcorrencia != nil {
-        j.SistemaConcorrencia.Parar()
-    }
+	if j.SistemaConcorrencia != nil {
+		j.SistemaConcorrencia.Parar()
+	}
+	close(j.acaoChan)
 }
