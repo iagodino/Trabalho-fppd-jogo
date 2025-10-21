@@ -27,7 +27,6 @@ type Jogo struct {
 
 // Elementos visuais do jogo
 var (
-	Inimigo2          = Elemento{'☙', CorAzul, CorPadrao, true}
 	inimigoModoChange = make(chan string)
 	inimigoModo       = "patrulheiro"
 	Personagem        = Elemento{'☺', CorCinzaEscuro, CorPadrao, true}
