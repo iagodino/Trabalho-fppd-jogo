@@ -25,6 +25,10 @@ func personagemMover(tecla rune, jogo *Jogo) {
 			} else {
 				jogoMoverElemento(jogo, jogo.PosX, jogo.PosY, dx, dy)
 				jogo.PosX, jogo.PosY = nx, ny
+
+				if jogo.rpc != nil {
+					jogo.rpc.EnviarPosicao(jogo.PosX, jogo.PosY)
+				}
 			}
 		}
 	})

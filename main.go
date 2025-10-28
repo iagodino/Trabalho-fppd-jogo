@@ -1,4 +1,3 @@
-// main.go - Loop principal do jogo
 package main
 
 import (
@@ -17,9 +16,24 @@ func main() {
 		mapaFile = os.Args[1]
 	}
 
-	// SUBSTITUIR por:
+	// Cria o jogo com o mapa
 	jogo := jogoNovoComConcorrencia(mapaFile)
 	defer jogo.Finalizar() // Garante que o sistema de concorrência será finalizado
+
+	// Nome padrão
+	nome := "Jogador1"
+
+	// Se foi passado um segundo argumento, usa ele como nome
+	if len(os.Args) > 2 {
+	nome = os.Args[2]
+	}
+
+	rpcClient := NovoRPCClient(nome)
+	jogo.rpc = rpcClient
+	// 💬 2. Inicia goroutine para receber atualizações periódicas do servidor
+	rpcClient.LoopAtualizacoes(func(estado EstadoGlobal) {
+		jogo.AtualizarOutrosJogadores(estado)
+	})
 
 	// Goroutine para movimento dos inimigos (mantém a funcionalidade existente)
 	go func() {
@@ -44,6 +58,12 @@ func main() {
 		if continuar := personagemExecutarAcao(evento, jogo); !continuar {
 			break
 		}
+
+		// 💬 3. Após cada ação, envia sua posição atual para o servidor
+		if jogo.rpc != nil {
+			jogo.rpc.EnviarPosicao(jogo.PosX, jogo.PosY)
+		}
+
 		interfaceDesenharJogo(jogo)
 	}
 }

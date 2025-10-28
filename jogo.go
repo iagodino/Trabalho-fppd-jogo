@@ -23,6 +23,8 @@ type Jogo struct {
 	SistemaConcorrencia *SistemaConcorrencia // sistema de concorrência associado ao jogo
 
 	acaoChan chan func() // canal de exclusão mútua
+
+	rpc *RPCClient // cliente RPC para comunicação com o servidor
 }
 
 // Elementos visuais do jogo
@@ -40,6 +42,7 @@ var (
 	AlavancaOn        = Elemento{'⊤', CorVerde, CorPadrao, false}
 	PortaAberta       = Elemento{' ', CorPadrao, CorPadrao, false}
 	PortaFechada      = Elemento{'║', CorAmarelo, CorPadrao, true}
+	Inimigo2		  = Elemento{'☢', CorAmarelo, CorPadrao, true}
 
 	inimigoDirecao        = make(map[[2]int]int)
 	inimigoUltimoVisitado = make(map[[2]int]Elemento)
@@ -197,4 +200,34 @@ func (j *Jogo) Finalizar() {
 		j.SistemaConcorrencia.Parar()
 	}
 	close(j.acaoChan)
+}
+
+// Atualiza a posição dos outros jogadores com base no estado global recebido do servidor
+func (j *Jogo) AtualizarOutrosJogadores(estado EstadoGlobal) {
+	j.executar(func() {
+		// 1️⃣ Limpa os jogadores remotos antigos (♟)
+		for y := 0; y < len(j.Mapa); y++ {
+			for x := 0; x < len(j.Mapa[y]); x++ {
+				if j.Mapa[y][x].simbolo == '♟' {
+					j.Mapa[y][x] = Vazio
+				}
+			}
+		}
+
+		// 2️⃣ Desenha novamente cada jogador remoto
+		for nome, jogador := range estado.Jogadores {
+			// ignora a si mesmo (usa o nome do cliente atual)
+			if j.rpc != nil && nome != j.rpc.nome {
+				if jogador.Y >= 0 && jogador.Y < len(j.Mapa) &&
+					jogador.X >= 0 && jogador.X < len(j.Mapa[jogador.Y]) {
+					j.Mapa[jogador.Y][jogador.X] = Elemento{
+						simbolo:  '♟',        // símbolo do outro jogador
+						cor:      CorAmarelo,  // cor destacada
+						corFundo: CorPadrao,
+						tangivel: true,
+					}
+				}
+			}
+		}
+	})
 }
