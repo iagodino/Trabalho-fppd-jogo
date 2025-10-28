@@ -29,7 +29,7 @@ type Comando struct {
 }
 
 func NovoRPCClient(nome string) *RPCClient {
-    c, err := rpc.Dial("tcp", "192.168.255.21:12345")
+    c, err := rpc.Dial("tcp", "localhost:12345")
     if err != nil {
         panic(err)
     }
