@@ -1,69 +1,94 @@
+// main.go - VERSÃO CORRIGIDA
 package main
 
 import (
-	"os"
-	"time"
+    "fmt"
+    "os"
+    "strings"
+    "time"
 )
 
 func main() {
-	// Inicializa a interface (termbox)
-	interfaceIniciar()
-	defer interfaceFinalizar()
+    interfaceIniciar()
+    defer interfaceFinalizar()
 
-	// Usa "mapa.txt" como arquivo padrão ou lê o primeiro argumento
-	mapaFile := "mapa.txt"
-	if len(os.Args) > 1 {
-		mapaFile = os.Args[1]
-	}
+    mapaFile := "mapa.txt"
+    var clienteRPC *RPCClient
 
-	// Cria o jogo com o mapa
-	jogo := jogoNovoComConcorrencia(mapaFile)
-	defer jogo.Finalizar() // Garante que o sistema de concorrência será finalizado
+    if len(os.Args) > 1 {
+        arg := os.Args[1]
+        
+        if strings.Contains(arg, ":") {
+            fmt.Printf("Conectando em servidor remoto\n")
+            nome := fmt.Sprintf("Jogador_%d", (time.Now().UnixNano()%100))
+            clienteRPC = NovoRPCClient(nome)
+        } else if strings.HasSuffix(arg, ".txt") {
+            mapaFile = arg
+        }
+    } else {
+        fmt.Printf("Conectando em servidor local\n")
+        nome := fmt.Sprintf("Jogador_%d", (time.Now().UnixNano()%100))
+        clienteRPC = NovoRPCClient(nome)
+    }
 
-	// Nome padrão
-	nome := "Jogador1"
+    jogo := jogoNovoComConcorrencia(mapaFile)
+    defer jogo.Finalizar()
 
-	// Se foi passado um segundo argumento, usa ele como nome
-	if len(os.Args) > 2 {
-	nome = os.Args[2]
-	}
+    jogo.rpc = clienteRPC
 
-	rpcClient := NovoRPCClient(nome)
-	jogo.rpc = rpcClient
-	// 💬 2. Inicia goroutine para receber atualizações periódicas do servidor
-	rpcClient.LoopAtualizacoes(func(estado EstadoGlobal) {
-		jogo.AtualizarOutrosJogadores(estado)
-	})
+    if clienteRPC != nil {
+        clienteRPC.LoopAtualizacoes(func(estado EstadoGlobal) {
+            jogo.AtualizarOutrosJogadores(estado)
+        })
+        fmt.Printf("Sincronização RPC ativa!\n")
+    }
 
-	// Goroutine para movimento dos inimigos (mantém a funcionalidade existente)
-	go func() {
-		for {
-			select {
-			case modo := <-inimigoModoChange:
-				inimigoModo = modo
-			default:
-				interfaceDesenharJogo(jogo)
-				jogoMoverInimigo(jogo)
-				time.Sleep(500 * time.Millisecond)
-			}
-		}
-	}()
+    // CANAL PARA CONTROLAR A GOROUTINE
+    done := make(chan bool)
+    defer close(done)
 
-	// Desenha o estado inicial do jogo
-	interfaceDesenharJogo(jogo)
+    // GOROUTINE PROTEGIDA para movimento dos inimigos
+    go func() {
+        defer func() {
+            if r := recover(); r != nil {
+                fmt.Printf("Erro na goroutine de inimigos: %v\n", r)
+            }
+        }()
+        
+        for {
+            select {
+            case <-done:
+                return  // ← Sai da goroutine quando programa termina
+            default:
+                // PROTEGER CONTRA PÂNICO
+                func() {
+                    defer func() {
+                        if r := recover(); r != nil {
+                            fmt.Printf("Erro no movimento de inimigo: %v\n", r)
+                        }
+                    }()
+                    
+                    interfaceDesenharJogo(jogo)
+                    jogoMoverInimigo(jogo)
+                }()
+                
+                time.Sleep(500 * time.Millisecond)
+            }
+        }
+    }()
 
-	// Loop principal de entrada
-	for {
-		evento := interfaceLerEventoTeclado()
-		if continuar := personagemExecutarAcao(evento, jogo); !continuar {
-			break
-		}
+    interfaceDesenharJogo(jogo)
 
-		// 💬 3. Após cada ação, envia sua posição atual para o servidor
-		if jogo.rpc != nil {
-			jogo.rpc.EnviarPosicao(jogo.PosX, jogo.PosY)
-		}
-
-		interfaceDesenharJogo(jogo)
-	}
+    for {
+        evento := interfaceLerEventoTeclado()
+        if continuar := personagemExecutarAcao(evento, jogo); !continuar {
+            break
+        }
+        
+        if jogo.rpc != nil {
+            jogo.rpc.EnviarPosicao(jogo.PosX, jogo.PosY)
+        }
+        
+        interfaceDesenharJogo(jogo)
+    }
 }

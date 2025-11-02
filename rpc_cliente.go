@@ -4,6 +4,7 @@ import (
     "fmt"
     "net/rpc"
     "time"
+    "os"
 )
 
 type RPCClient struct {
@@ -29,13 +30,30 @@ type Comando struct {
 }
 
 func NovoRPCClient(nome string) *RPCClient {
-    c, err := rpc.Dial("tcp", "localhost:12345")
-    if err != nil {
-        panic(err)
+    var serverAddr string
+    
+    // Se forneceu argumento, usa ele. Senão, usa localhost
+    if len(os.Args) >= 2 {
+        serverAddr = os.Args[1]
+        fmt.Printf("Conectando em: %s\n", serverAddr)
+    } else {
+        serverAddr = "localhost:12345"
+        fmt.Printf("Conectando localmente: %s\n", serverAddr)
     }
+
+    c, err := rpc.Dial("tcp", serverAddr)
+    if err != nil {
+        panic(fmt.Sprintf("Erro ao conectar em %s: %v", serverAddr, err))
+    }
+    
     client := &RPCClient{client: c, nome: nome}
     var ok bool
-    c.Call("Servidor.RegistrarJogador", nome, &ok)
+    err = c.Call("Servidor.RegistrarJogador", nome, &ok)
+    if err != nil {
+        panic(fmt.Sprintf("Erro ao registrar: %v", err))
+    }
+    
+    fmt.Printf("✅ Jogador '%s' conectado!\n", nome)
     return client
 }
 
